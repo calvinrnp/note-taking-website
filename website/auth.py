@@ -1,10 +1,9 @@
-import re
-from flask import Blueprint, redirect, render_template, request, flash, url_for
-from werkzeug.security import generate_password_hash, check_password_hash
-
-from . import db
-
+from flask import Blueprint, render_template, request, flash, redirect, url_for
 from .models import User
+from werkzeug.security import generate_password_hash, check_password_hash
+from . import db
+from flask_login import login_user, login_required, logout_user, current_user
+import re
 
 auth = Blueprint('auth', __name__)
 
@@ -13,7 +12,20 @@ emailRegex = r'\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Z|a-z]{2,}\b'
 
 @auth.route('/login', methods=['GET', 'POST'])
 def login():
-    data = request.form
+    if request.method == 'POST':
+        email = request.form.get('email')
+        password = request.form.get('password')
+
+        user = User.query.filter_by(email=email).first()
+        if user:
+            if check_password_hash(user.password, password):
+                flash('Logged in Successfully!', category='success')
+            else:
+                flash('Incorrect Password.', category='error')
+        else:
+            flash('E-mail not registered.', category='error')
+
+
     return render_template('login.html', text='user')
 
 @auth.route('/logout')
@@ -28,7 +40,11 @@ def sign_up():
         password1 = request.form.get('password1')
         password2 = request.form.get('password2')
 
-        if not re.fullmatch(emailRegex, email):
+        user = User.query.filter_by(email=email).first()
+
+        if user:
+            flash('E-mail already exists.', category='error')
+        elif not re.fullmatch(emailRegex, email):
             flash('Invalid E-mail', category='error')
         elif len(username) < 4:
             flash('Username must be longer than 3 characters', category='error')
@@ -39,7 +55,7 @@ def sign_up():
         else:
             new_user = User(email=email, username=username, password=generate_password_hash(password1, method='sha256'))
             db.session.add(new_user)
-            db.session.commit
+            db.session.commit()
 
             flash('Account created!', category='success')
             return redirect(url_for('views.home'))
